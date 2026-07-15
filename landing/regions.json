@@ -3,6 +3,18 @@
     "api_url": "https://api.cn-hangzhou.e2b.fc.aliyuncs.com",
     "domain": "cn-hangzhou.e2b.fc.aliyuncs.com"
   },
+  "cn-hongkong": {
+    "api_url": "https://api.cn-hongkong.e2b.fc.aliyuncs.com",
+    "domain": "cn-hongkong.e2b.fc.aliyuncs.com"
+  },
+  "ap-southeast-1": {
+    "api_url": "https://api.ap-southeast-1.e2b.fc.aliyuncs.com",
+    "domain": "ap-southeast-1.e2b.fc.aliyuncs.com"
+  },
+  "us-east-1": {
+    "api_url": "https://api.us-east-1.e2b.fc.aliyuncs.com",
+    "domain": "us-east-1.e2b.fc.aliyuncs.com"
+  },
   "us-west-1": {
     "api_url": "https://api.us-west-1.e2b.fc.aliyuncs.com",
     "domain": "us-west-1.e2b.fc.aliyuncs.com"
