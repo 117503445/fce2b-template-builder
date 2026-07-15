@@ -38,6 +38,8 @@ Dockerfile
 
 Action 会用 `GHCR_TOKEN` 调用 GitHub `GET /user` 自动获取用户名，不需要额外配置 GHCR username。如果组织启用 SSO，PAT 还需要完成组织授权。
 
+landing 执行器会关闭 E2B SDK 的 `e2b_<hex>` 本地格式校验，以兼容 fce2b 的纯数字历史 API Key；请求仍使用原始 `FCE2B_API_KEY` 进行线上鉴权。
+
 > 当前 sandbox-gateway 会将 Dest Registry 凭证持久化到 Template，以便 FC 后续拉取私有 final image。因此 PAT 必须保持有效；轮换 PAT 后需重新运行 landing。
 
 ## 触发

@@ -44,6 +44,8 @@ headers = {
 build_params = ApiParams(request_timeout=1200, headers=headers)
 connection = {
     "api_key": api_key,
+    # fce2b 仍支持纯数字历史 API Key，关闭 E2B SDK 的 e2b_<hex> 本地格式校验。
+    "validate_api_key": False,
     "api_url": api_url,
     "domain": domain,
 }
