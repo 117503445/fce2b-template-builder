@@ -2,5 +2,9 @@
   "cn-hangzhou": {
     "api_url": "https://api.cn-hangzhou.e2b.fc.aliyuncs.com",
     "domain": "cn-hangzhou.e2b.fc.aliyuncs.com"
+  },
+  "us-west-1": {
+    "api_url": "https://api.us-west-1.e2b.fc.aliyuncs.com",
+    "domain": "us-west-1.e2b.fc.aliyuncs.com"
   }
 }

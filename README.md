@@ -27,7 +27,7 @@ Dockerfile
 
 | 名称 | 示例 | 说明 |
 | --- | --- | --- |
-| `FCE2B_REGION` | `cn-hangzhou` | fce2b 地域，必须在 `landing/regions.json` 白名单中。 |
+| `FCE2B_REGION` | `cn-hangzhou` 或 `us-west-1` | fce2b 地域，必须在 `landing/regions.json` 白名单中。 |
 
 ### Actions secrets
 
@@ -35,6 +35,8 @@ Dockerfile
 | --- | --- |
 | `FCE2B_API_KEY` | 目标地域的 fce2b API Key。 |
 | `GHCR_TOKEN` | GitHub PAT classic，需要 `read:packages` 和 `write:packages`。 |
+
+当前已配置杭州 `cn-hangzhou` 和美国（硅谷）`us-west-1`。API Key 按地域隔离，切换地域时必须同时替换 `FCE2B_API_KEY`。
 
 Action 会用 `GHCR_TOKEN` 调用 GitHub `GET /user` 自动获取用户名，不需要额外配置 GHCR username。如果组织启用 SSO，PAT 还需要完成组织授权。
 
