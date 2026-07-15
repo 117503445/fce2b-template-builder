@@ -3,112 +3,89 @@
 
 import json
 import os
-import time
 from pathlib import Path
 
 from e2b import ApiParams, Template, default_build_logger
 from e2b_code_interpreter import Sandbox
-from e2b.template.types import BuildInfo, TemplateBuildStatus
 
 
-def required_env(name: str) -> str:
-    """读取必填环境变量。
-
-    name: 环境变量名称。
-    """
+required_env_names = (
+    "FCE2B_API_KEY",
+    "FCE2B_API_URL",
+    "FCE2B_DOMAIN",
+    "SOURCE_IMAGE",
+    "FINAL_IMAGE",
+    "GHCR_USERNAME",
+    "GHCR_TOKEN",
+    "TEMPLATE_NAME",
+    "FCE2B_REGION",
+    "GITHUB_SHA",
+    "RELEASE_CREATED_AT",
+)
+config = {}
+for name in required_env_names:
     value = os.getenv(name, "").strip()
     if not value:
         raise RuntimeError(f"缺少环境变量: {name}")
-    return value
+    config[name] = value
 
-
-def wait_for_build(build_info: BuildInfo, connection_options: dict, api_params: ApiParams) -> None:
-    """等待 Template Build 完成，并规避终态日志重复返回导致的 SDK 无限轮询。
-
-    build_info: 后台构建返回的 Template 与 Build 标识。
-    connection_options: fce2b API 连接参数。
-    api_params: 包含自定义 Header 与超时的 API 参数。
-    """
-    deadline = time.monotonic() + 1200
-    logs_offset = 0
-    while time.monotonic() < deadline:
-        status = Template.get_build_status(
-            build_info,
-            logs_offset=logs_offset,
-            **connection_options,
-            **api_params,
-        )
-        for entry in status.log_entries:
-            print(f"template build [{entry.level}]: {entry.message}", flush=True)
-        logs_offset += len(status.log_entries)
-
-        if status.status == TemplateBuildStatus.READY:
-            return
-        if status.status == TemplateBuildStatus.ERROR:
-            reason = status.reason.message if status.reason else "Template Build 失败"
-            raise RuntimeError(reason)
-        time.sleep(5)
-    raise TimeoutError("等待 Template Build 完成超时")
-
-
-api_key = required_env("FCE2B_API_KEY")
-api_url = required_env("FCE2B_API_URL")
-domain = required_env("FCE2B_DOMAIN")
-source_image = required_env("SOURCE_IMAGE")
-final_image = required_env("FINAL_IMAGE")
-ghcr_username = required_env("GHCR_USERNAME")
-ghcr_token = required_env("GHCR_TOKEN")
-template_name = required_env("TEMPLATE_NAME")
-region = required_env("FCE2B_REGION")
-commit = required_env("GITHUB_SHA")
-created_at = required_env("RELEASE_CREATED_AT")
+API_KEY = config["FCE2B_API_KEY"]
+API_URL = config["FCE2B_API_URL"]
+DOMAIN = config["FCE2B_DOMAIN"]
+SOURCE_IMAGE = config["SOURCE_IMAGE"]
+FINAL_IMAGE = config["FINAL_IMAGE"]
+GHCR_USERNAME = config["GHCR_USERNAME"]
+GHCR_TOKEN = config["GHCR_TOKEN"]
+TEMPLATE_NAME = config["TEMPLATE_NAME"]
+REGION = config["FCE2B_REGION"]
+COMMIT = config["GITHUB_SHA"]
+CREATED_AT = config["RELEASE_CREATED_AT"]
 
 headers = {
     "X-E2B-Template-Build-Mode": "builder",
     "X-E2B-Template-Source-Registry-Type": "oci",
-    "X-E2B-Template-Dest-Image-Ref": final_image,
-    "X-E2B-Template-Source-Username": ghcr_username,
-    "X-E2B-Template-Source-Password": ghcr_token,
-    "X-E2B-Template-Dest-Username": ghcr_username,
-    "X-E2B-Template-Dest-Password": ghcr_token,
+    "X-E2B-Template-Dest-Image-Ref": FINAL_IMAGE,
+    "X-E2B-Template-Source-Username": GHCR_USERNAME,
+    "X-E2B-Template-Source-Password": GHCR_TOKEN,
+    "X-E2B-Template-Dest-Username": GHCR_USERNAME,
+    "X-E2B-Template-Dest-Password": GHCR_TOKEN,
 }
-build_params = ApiParams(request_timeout=1200, headers=headers)
-connection = {
-    "api_key": api_key,
-    # fce2b 仍支持纯数字历史 API Key，关闭 E2B SDK 的 e2b_<hex> 本地格式校验。
-    "validate_api_key": False,
-    "api_url": api_url,
-    "domain": domain,
-}
+api_params = ApiParams(
+    request_timeout=1200,
+    headers=headers,
+    api_key=API_KEY,
+    validate_api_key=False,
+    api_url=API_URL,
+    domain=DOMAIN,
+)
 
 print(
     json.dumps(
         {
             "event": "landing_started",
-            "region": region,
-            "source_image": source_image,
-            "final_image": final_image,
-            "template_name": template_name,
+            "region": REGION,
+            "source_image": SOURCE_IMAGE,
+            "final_image": FINAL_IMAGE,
+            "template_name": TEMPLATE_NAME,
         },
         ensure_ascii=False,
     ),
     flush=True,
 )
 
-build = Template.build_in_background(
-    Template().from_image(source_image),
-    name=template_name,
+build = Template.build(
+    Template().from_image(SOURCE_IMAGE),
+    name=TEMPLATE_NAME,
     cpu_count=2,
     memory_mb=2048,
     skip_cache=False,
     on_build_logs=default_build_logger(),
-    **connection,
-    **build_params,
+    **api_params,
 )
 print(
     json.dumps(
         {
-            "event": "template_build_submitted",
+            "event": "template_build_ready",
             "template_id": build.template_id,
             "build_id": build.build_id,
         },
@@ -116,13 +93,15 @@ print(
     ),
     flush=True,
 )
-wait_for_build(build, connection, build_params)
 
 sandbox = Sandbox.create(
     template=build.template_id,
     timeout=900,
     request_timeout=600,
-    **connection,
+    api_key=API_KEY,
+    validate_api_key=False,
+    api_url=API_URL,
+    domain=DOMAIN,
 )
 
 sandbox_id = sandbox.sandbox_id
@@ -145,12 +124,12 @@ finally:
     print(f"sandbox killed: {sandbox_id}", flush=True)
 
 result = {
-    "region": region,
-    "commit": commit,
-    "created_at": created_at,
-    "source_image": source_image,
-    "final_image": final_image,
-    "template_name": template_name,
+    "region": REGION,
+    "commit": COMMIT,
+    "created_at": CREATED_AT,
+    "source_image": SOURCE_IMAGE,
+    "final_image": FINAL_IMAGE,
+    "template_name": TEMPLATE_NAME,
     "template_id": build.template_id,
     "build_id": build.build_id,
     "sandbox_id": sandbox_id,
@@ -167,10 +146,10 @@ if summary_path:
         [
             "# fce2b landing 成功",
             "",
-            f"- Region: `{region}`",
-            f"- Source image: `{source_image}`",
-            f"- Final image: `{final_image}`",
-            f"- Template name: `{template_name}`",
+            f"- Region: `{REGION}`",
+            f"- Source image: `{SOURCE_IMAGE}`",
+            f"- Final image: `{FINAL_IMAGE}`",
+            f"- Template name: `{TEMPLATE_NAME}`",
             f"- Template ID: `{build.template_id}`",
             f"- Build ID: `{build.build_id}`",
             f"- Sandbox ID: `{sandbox_id}`",
