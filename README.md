@@ -69,6 +69,23 @@ API Key 按地域隔离。修改 `FCE2B_REGION` 时，必须同时把 `FCE2B_API
 
 修改 Dockerfile 或依赖后重新触发 workflow。每次成功发布都会生成新的 Template ID，不会覆盖之前的 Template。
 
+## 使用 Git tag 发布镜像
+
+创建并推送符合 `v<major>.<minor>.<patch>` 格式的 Git tag：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+`Publish image by tag` workflow 会构建 `linux/amd64` 镜像并发布到：
+
+```text
+ghcr.io/<owner>/<repository>:v1.0.0
+```
+
+版本 tag 不会同时覆盖 `latest`。如需发布新版本，请创建新的 Git tag。
+
 ## 凭证维护
 
 - 不要把 `FCE2B_API_KEY` 或 `GHCR_TOKEN` 写入仓库文件、Dockerfile 或 Action 日志。

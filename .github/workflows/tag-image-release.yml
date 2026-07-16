@@ -1,0 +1,105 @@
+name: Publish image by tag
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/tag-image-release.yml
+      - Dockerfile
+      - .dockerignore
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tag-image-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: Build and publish image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve image
+        id: image
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          owner="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          repository="$(printf '%s' "${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')"
+
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            image_tag="$GITHUB_REF_NAME"
+            if [[ ! "$image_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+              echo "不支持的发布 tag: $image_tag" >&2
+              exit 1
+            fi
+          else
+            image_tag="pr-${PR_NUMBER}"
+          fi
+
+          {
+            echo "image=ghcr.io/${owner}/${repository}:${image_tag}"
+            echo "source=https://github.com/${GITHUB_REPOSITORY}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve GHCR username
+        if: github.event_name == 'push'
+        id: ghcr
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$GHCR_TOKEN"
+          username="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GHCR_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/user | jq -er '.login')"
+          echo "username=$username" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        if: github.event_name == 'push'
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USERNAME: ${{ steps.ghcr.outputs.username }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+
+      - name: Build image
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          SOURCE: ${{ steps.image.outputs.source }}
+        run: |
+          set -euo pipefail
+          docker build \
+            --platform linux/amd64 \
+            --label "org.opencontainers.image.source=$SOURCE" \
+            --tag "$IMAGE" \
+            .
+
+      - name: Push image
+        if: github.event_name == 'push'
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: docker push "$IMAGE"
+
+      - name: Inspect published image
+        if: github.event_name == 'push'
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: docker buildx imagetools inspect "$IMAGE"
+
+      - name: Write summary
+        if: github.event_name == 'push'
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          printf '# 镜像发布成功\n\n- Image: `%s`\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
